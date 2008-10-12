@@ -1,0 +1,19 @@
+= Hestia
+
+Hestia[1] is a framework for defining ISAs. It provides a Ruby-based `DSL' to
+define an ISA, and from it can assemble and disassemble the specified assembly
+operations, as well as simulate both assembly files and already-assembled binary
+files.
+
+== Defining an ISA
+
+Defining an ISA can be done anywhere, though giving it its own file is probably
+a good plan. However, in this case, for now, you will need some external way to
+access the defined ISA object. A sample ISA definition is provided in the
+isa_def.rb file that stores the resulting ISA in an @isa3220 instance variable.
+
+Defining an ISA starts at the +isa+ method. It only takes a block, within whose
+context you can go about specifying the ISA definition.
+
+= Footnotes
+<sup>1</sup>- Hestia is the Greek goddess of architecture, as it were.
