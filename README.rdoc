@@ -10,10 +10,126 @@ files.
 Defining an ISA can be done anywhere, though giving it its own file is probably
 a good plan. However, in this case, for now, you will need some external way to
 access the defined ISA object. A sample ISA definition is provided in the
-isa_def.rb file that stores the resulting ISA in an @isa3220 instance variable.
++isa_def.rb+ file that stores the resulting ISA in an @isa3220 instance variable.
 
 Defining an ISA starts at the +isa+ method. It only takes a block, within whose
 context you can go about specifying the ISA definition.
 
+=== Setup
+
+Each ISA has several directives available to it to set up the ISA's
+characteristics. These set up instruction widths, data widths, etc. These can be
+identified as the instance methods available in the +ISA+ class. They are:
+
+[[+instruction_width+]] The width of a single instruction, in bits.
+[[+data_width+]] The width of a word of data, in bits.
+[[+byte_order+]] The byte ordering in memory. +:little_endian+ and +:big_endian+ are
+    the valid values.
+[[+instruction_start+]] The start address of the instruction part of memory.
+[[+*_width+]] Any method that ends in +_width+ sets the width of a particular
+    field in an assembled binary instruction, in bits.[2]
+[[+reg_width+]] This is a special width call that sets the width for *all*
+    register fields in binary instructions (see below).
+[[+terminating_instruction+]] The binary representation of an instruction that,
+    when detected, will cause simulations to terminate.
+
+=== Register Setup
+
+There are also a few register-related declarations that can be made:
+[[+ground_register+]] Takes a register number and an +:as+ option to specify a
+    name that the register can be identified by in op definitions. This causes
+    that register number to freeze its value to 0. Any writes to it will not
+    change its value, and will emit a warning.
+[[+reserve_register+]] Takes a register number and an +:as+ option to specify a
+    nam ethat the register can be identified by in op definitions. This causes
+    that register number to emit warnings when it is written to. This is more of
+    a debugging tool, since the register's value is still modifiable.
+[[+reg_formats+]] Specifies a list of valid formats for specifying a register in
+    assembly instructions. +:val+ indicates the actual register number. For
+    example, 'R:val' means that `R13' will translate to register to register
+    number 13.
+[[+register_args+]] Specifies parameters in ops that are considered register
+    parameters. In string patterns for assembly ops, these are parsed using one
+    of the register formats set via +reg_formats+. In patterns for binary ops,
+    these fields are given the width specified by +reg_width+.
+[[+destination_register+]] Specifies the register parameter that, when it
+    appears in an instruction, will have the result of the op's execution block
+    (see below) stored into it.
+
+=== Operations
+
+Finally, the most important part of the ISA is the definition of actual
+operations that the ISA accepts. These come in two forms: regular ops and
+mnemonics. Mnemonics expand into several base instructions. Ops can be grouped
+into `op types', which are groups of operations that share properties, including
+binary and assembly representations.
+
+Here is an example of a simple operation:
+
+ op('mib0', :with_opcode => 12, :takes => ':op :dest, :imm',
+                                :produces => ':opcode:dest:imm') do
+   regs[dest][31..8] | imm
+ end
+
+This operation is has the name `mib0'. This is the name that will be used for it
+in an assembly file.
+
+The :takes option specifies the format of the op in an assembly file. The :op
+placeholder is always the name of the operation. :dest is a register, as
+specified via the +register_args+ method. It is also the destination register,
+as specified via the +destination_register+ method. :imm, because it was not
+listed via +register_args+ beforehand, is just taken to be an immediate value.
+
+The :produces option specifies the format of the op in binary form. Each value
+in this is a number, and the widths of each of these is specified via the
++*_width+ methods before ops are defined. Values can be fixed by passing the
++:with_*+ options. Each of these fixes a particular placeholder in the binary
+form to a specific value. These fixed values are used for disassembling and for
+assembling. When disassembling, the non-fixed placeholders are assigned as local
+variables. When assembling, these same placeholders have their values taken from
+existing local variables, typically parsed from the :takes option.
+
+Finally, the op takes a block. This block executes the actual operation. It has
+access to a few things:
+* All variables specified as placeholders in :takes and :produces.
+* A regs collection that represents all the registers in the ISA.
+* A mem collection that represents all the memory in the ISA.
+
+If the op has a destination register (specified by +destination_register+) as
+one of its placeholders, then the result of the block is assigned into that
+register once the block is done executing. Otherwise, the result of the block is
+discarded. In the above example, the block reads the destination register's top
+24 bits, then uses the immediate value for the bottom 8. This is the result of
+the block, which is then assigned back into the destination register.
+
+Here is an exampl eof op types:
+
+ op_type 'arith', :takes    => ':op :dest, :src',
+                  :produces => ':opcode:dest:src:ext',
+                  :with_opcode => 0 do
+   op('add',  :with_ext => 0)  { regs[dest] + regs[src] }
+   op('sub',  :with_ext => 1)  { regs[dest] - regs[src] }
+   op('mul',  :with_ext => 2)  { regs[dest] * regs[src] }
+   op('neg',  :with_ext => 3)  { - regs[src] }
+ end
+
+In this example, we set up an op type. Op types essentially take the same
+options as ops, and then all ops within them have, as their options, the options
+passed to the op_type combined with those passed to the op itself. In the above
+example, the 'add' op has the :takes, :produces, and :with_opcode options, as
+well as the :with_ext option. In this context the width of the ext field is set
+up by calling +ext_width+ before the op type is set up. As before, the presence
+of the :dest parameter means that the results of each op's block gets stored
+into the destination register.
+
+More examples can be observed, as mentioned above, by looking at the isa_def.rb
+file in the root directory of Hestia.
+
+== Assembling, Disassembling, and Simulating
+
+To come.
+
 = Footnotes
 <sup>1</sup>- Hestia is the Greek goddess of architecture, as it were.
+<sup>2</sup>- Hestia needs to know the width of at least all but one of the
+    fields in any given binary representation of an instruction.
